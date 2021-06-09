@@ -1,18 +1,27 @@
 sudo: required
 services:
   - docker
+env:
+  global:
+    - SHA=$(git rev-parse HEAD)
+    - CLOUDSDK_CORE_DISABLE_PROMPTS=1
 before_install:
+  - openssl aes-256-cbc -K $encrypted_9f3b5599b056_key -iv $encrypted_9f3b5599b056_iv -in service-account.json.enc -out service-account.json -d
   - curl https://sdk.cloud.google | bash > /dev/null;
   - source $HOME/google-cloud-sdk/path.bash.inc
   - gcloud components update kubectl
   - gcloud auth activate-service-account --key-file service-account.json
+  - gcloud config set project multi-k8s-313517
+  - gcloud config set compute/zone europe-central2-a
+  - gcloud container clusters get-credentials multi-cluster
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker build -t showy93/react-test -f ./client/Dockerfile.dev ./client
   
-  - docker run -it -v $(pwd):/app ruby:2.4 sh
-  - gem install travis
-  
+script:
+  - docker run -e CI=true showy93/react-test npm test
 
-  travis login --github-token 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 --com
-  travis login --github-token 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 --pro
-
-  travis encrypt-file service-account.json -r USERNAME/REPO --com
-  travis encrypt-file service-account.json -r USERNAME/REPO --pro
+deploy:
+  provider: script
+  script: bash ./deploy.sh
+  on:
+    branch: master
